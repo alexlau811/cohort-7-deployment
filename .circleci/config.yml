@@ -30,3 +30,42 @@ jobs:
         
       - run: yarn build
 
+      - persist_to_workspace:
+          root: .
+          # Must be relative path from root
+          paths:
+            - build/*
+
+  deploy-job:
+    docker:
+      - image: circleci/python:3.6
+
+    working_directory: /tmp/my-project
+    steps:
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: /tmp/my-project
+
+      - run:
+          name: Install AWS CLI
+          command: pip install awscli --user
+
+      - run:
+          name: Deploy to S3 if tests pass and branch is Master
+          command: ~/.local/bin/aws s3 sync --acl public-read build/ s3://cohort-7-deployment --delete
+
+      - run:
+          name: Invalidate Cloudfront distribution
+          command: ~/.local/bin/aws cloudfront create-invalidation --distribution-id E388YJ6987WTKZ --paths "/*"
+
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      - build
+      - deploy-job:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
